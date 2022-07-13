@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+
+<head>
+    <%- include('partials/head'); -%>
+        <!-- <script type="text/javascript" src="/scripts/jquery.min.js"></script> -->
+        <!-- <script type="text/javascript" src="/scripts/jquery.idle.js"></script> -->
+        <!-- <script type="text/javascript" src="/scripts/index.js"></script> -->
+        <script src="/js/socket.io.js"></script>
+        <meta charset="utf-8">
+
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+
+        <title></title>
+        <meta name="description" content="">
+        <meta name="viewport"
+            content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+
+        <link rel="shortcut icon" href=<%=faviconUrl %> />
+
+</head>
+
+<script>
+    let timer = "<%-timerTime%>";
+    const second = 1000;
+</script>
+
+<body>
+
+    <div id="finishPage">
+        <!-- <div class="card border-danger mx-auto mt-300 bg-white" style="max-width: 35rem;">
+            <div class="card-header bg-danger text-white text-large text-right">פג התוקף של הדף
+            </div>
+            <div class="card-body text-danger">
+                <p class="card-text text-meduim text-right">רענן כדי להמשיך לצפות</p>
+                <img src="/images/timer1.png" width="55" height="55" class="float-left">
+            </div>
+            <div class="card-footer bg-transparent text-right">
+                <button type="button" onclick="window.location.reload()" class="btn btn-outline-danger">רענן</button>
+            </div>
+        </div> -->
+        <div class="dialog">
+            <img src="/images/refresh.png" alt="Refresh" class="refresh-image">
+            <div class="header">
+                <span>פג התוקף של הדף</span>
+            </div>
+            <div class="content">
+                <span>רענן את הדף על מנת שתוכל להמשיך לערוך/לצפות בקובץ</span>
+            </div>
+            <div class="actions">
+                <button class="refresh-button btn btn-primary font-weight-normal" onclick="window.location.reload()">רענן</button>
+            </div>
+            <div id="circle-1"></div>
+            <div id="circle-2"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="warningModel" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <img src="/images/warning1.png" class="float-right">
+                    <p class="text-right" id="timer">העמוד הולך להסגר בעוד <var id="second"></var> שניות</p>
+                    <p class="text-right">הזז את העכבר כדי למנוע זאת</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form id="office_form" name="office_form" target="office_frame" action=<%=url%> method="post">
+        <input name="access_token" value=<%=accessToken %> type="hidden" />
+    </form>
+
+    <span id="frameholder"></span>
+
+    <script type="text/javascript">
+        const fileId = '<%-fileId%>';
+        const userId = '<%-userId%>';
+        const intervalTime = parseInt('<%-intervalTime%>');
+
+        var frameholder = document.getElementById('frameholder');
+        var office_frame = document.createElement('iframe');
+        office_frame.name = 'office_frame';
+        office_frame.id = 'office_frame';
+        office_frame.title = "DriveDocs";
+        office_frame.setAttribute('allowfullscreen', 'true');
+        office_frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation allow-popups-to-escape-sandbox');
+        frameholder.appendChild(office_frame);
+        document.getElementById('office_form').submit();
+
+        const socket = io.connect(`/?userId=${userId}&fileId=${fileId}`);
+
+    </script>
+</body>
+<%- include('partials/script'); -%>
+    <script src="/js/index.js"></script>
+</html>
