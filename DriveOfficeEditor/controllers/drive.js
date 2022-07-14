@@ -1,8 +1,8 @@
 const fs = require("fs");
 const axios = require("axios");
 const FormData = require("form-data");
-const mime = require('mime-types');
-const path = require('path');
+const mime = require("mime-types");
+const path = require("path");
 const metadataService = require("../services/metadataService");
 const logger = require("../services/logger.js");
 const { config } = require("../config/config.js");
@@ -24,13 +24,14 @@ exports.uploadNewFileToDrive = async (req, res, next) => {
   const blankFilePath = `${process.env.BLANK_PATH}/blank.${req.query.type}`;
   const newFilePath = `${process.env.TEMPLATE_FOLDER}/${req.query.name}.${req.query.type}`;
   fs.copyFileSync(blankFilePath, newFilePath);
+  const size = fs.statSync(newFilePath).size;
   const data = new FormData();
   data.append("file", fs.createReadStream(newFilePath));
-  fs.unlinkSync(newFilePath)
+  fs.unlinkSync(newFilePath);
   const accessToken = metadataService.getAuthorizationHeader(req.user);
   let fileId;
   try {
-    fileId = await upload(data, req.query.parent, accessToken);
+    fileId = await upload(data, { parent: req.query.parent, name: req.query.name, size }, accessToken);
     res.locals.fileId = fileId;
     next();
   } catch (error) {
@@ -54,26 +55,27 @@ exports.uploadNewFileToDrive = async (req, res, next) => {
 
 exports.redirectToDriveDownload = (req, res, next) => {
   try {
-    return res.redirect(`${process.env.DRIVE_URL}/api/files/${req.params.id}?alt=media`);
-  }
-  catch{
+    return res.redirect(`${process.env.DRIVE_URL}/api/fs/file/${req.params.id}/download`);
+  } catch {
     return res.status(500).send("error");
   }
-}
+};
 
-async function upload(filedata, parentId, accessToken) {
+async function upload(filedata, params, accessToken) {
   try {
-    const uploadRequest = {
+    const queryString = Object.entries({ ...params, public: false, client: process.env.CLIENT_NAME })
+      .map(([key, value]) => `${key}=${value}`)
+      .join("&");
+    const response = await axios({
       method: "post",
-      url: `${process.env.DRIVE_URL}/api/upload?uploadType=multipart${parentId ? `&parent=${parentId}` : ""} `,
+      url: `${process.env.DRIVE_URL}/api/fs/file?${queryString}`,
       headers: {
-        Authorization: accessToken,
-        "Auth-Type": "Docs",
+        ...accessToken,
         ...filedata.getHeaders(),
+        "content-type": "multipart/form-data",
       },
       data: filedata,
-    };
-    const response = await axios(uploadRequest);
+    });
     return response.data;
   } catch (error) {
     throw error;
@@ -82,77 +84,53 @@ async function upload(filedata, parentId, accessToken) {
 
 exports.updateFile = async (fileId, filePath, accessToken) => {
   try {
-    const size = getFileSize(filePath); //
-    mimeType = mime.contentType(path.extname(filePath))
+    const size = getFileSize(filePath);
+    mimeType = mime.contentType(path.extname(filePath));
     const data = new FormData();
-    data.append('file', fs.createReadStream(filePath));
-    const uploadId = await getUploadId(size, fileId, accessToken);
+    data.append("file", fs.createReadStream(filePath));
     const updateRequest = {
-      method: 'post',
-      url: `${process.env.DRIVE_URL}/api/upload?uploadType=resumable&uploadId=${uploadId}`,
+      method: "post",
+      url: `${process.env.DRIVE_URL}/api/files/${fileId}/reupload?size=${size}`,
       headers: {
-        'Content-Range': `bytes 0-${size - 1}/${size}`,
-        'Authorization': accessToken,
-        "Auth-Type": "Docs",
+        ...accessToken,
         ...data.getHeaders(),
-        "X-Mime-Type": mimeType
+        "content-type": "multipart/form-data",
       },
-      data: data
+      data: data,
     };
     await axios(updateRequest);
   } catch (error) {
     throw error;
   }
-}
+};
 
 exports.downloadFileFromDrive = async (idToDownload, downloadedFilePath, accessToken) => {
   try {
     const writer = fs.createWriteStream(downloadedFilePath);
-    const url = `${process.env.DRIVE_URL}/api/files/${idToDownload}?alt=media`;
     const downloadRequest = {
       method: "GET",
-      responseType: 'stream',
-      url,
+      url: `${process.env.DRIVE_URL}/api/fs/file/${idToDownload}/download`,
       headers: {
-        Authorization: accessToken,
-        "Auth-Type": "Docs",
+        ...accessToken,
       },
+      responseType: "stream",
     };
     const response = await axios(downloadRequest);
-    response.data.pipe(writer)
+    response.data.pipe(writer);
     return new Promise((resolve, reject) => {
-      writer.on('finish', resolve);
-      writer.on('error', reject);
-    })
+      writer.on("finish", resolve);
+      writer.on("error", reject);
+    });
   } catch (error) {
     throw error;
   }
 };
 
-async function getUploadId(size, fileId, accessToken) {
-  const uploadIdRequest = {
-    method: 'PUT',
-    url: `${process.env.DRIVE_URL}/api/upload/${fileId}`,
-    headers: {
-      'Authorization': accessToken,
-      "Auth-Type": "Docs",
-      'X-Content-Length': size,
-    },
-  };
-  try {
-    const response = await axios(uploadIdRequest);
-    return response.headers["x-uploadid"];
-  } catch (error) {
-    throw error;
-  }
-}
-
 function getFileSize(filePath) {
   try {
     const stats = fs.statSync(filePath);
     return `${stats.size}`;
-  }
-  catch (error) {
+  } catch (error) {
     throw error;
   }
 }

@@ -2,17 +2,13 @@ const jwt = require("jsonwebtoken");
 const metadataService = require("../services/metadataService");
 const logger = require("../services/logger.js");
 
-
 exports.generateAccessToken = async (req, res, next) => {
   try {
     const authorization = metadataService.getAuthorizationHeader(req.user);
     res.locals.authorization = authorization;
     const name = req.user["name"] ? req.user["name"] : "User";
     const dataToSign = {
-      user: { id: req.user["id"], 
-      name: name, 
-      permission: res.locals.permission, 
-      authorization: authorization },
+      user: { id: req.user["id"], name: name, permission: res.locals.permission, authorization: authorization.cookie },
       created: Date.now(),
     };
     if (res.locals.metadata) {

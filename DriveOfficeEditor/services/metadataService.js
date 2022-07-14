@@ -34,14 +34,14 @@ const generateAuthorizationHeader = (userObj) => {
     logger.log({
       level: "info",
       message: `Authorization token created successfully`,
-      label: `user: ${userObj.id}`
+      label: `user: ${userObj.id}`,
     });
-    return "Bearer " + authorization;
+    return { cookie: `access-token=${authorization}` };
   } catch (e) {
     logger.log({
       level: "error",
       message: `Authorization token creation failed, error: ${e}`,
-      label: `User: ${userObj.id}`
+      label: `User: ${userObj.id}`,
     });
     throw e;
   }
@@ -54,7 +54,7 @@ exports.getAuthorizationHeader = (userObj) => {
     logger.log({
       level: "error",
       message: `Authorization creation failed, error: ${e}`,
-      label: `User: ${userObj.id}`
+      label: `User: ${userObj.id}`,
     });
     throw e;
   }
@@ -62,17 +62,17 @@ exports.getAuthorizationHeader = (userObj) => {
 
 exports.getMetadata = async (fileId, user) => {
   try {
-    const url = `${process.env.DRIVE_URL}/api/files/${fileId}`;
+    const url = `${process.env.DRIVE_URL}/api/fs/query/${fileId}`;
     const authorization = generateAuthorizationHeader(user);
     const metadata = await axios.get(url, {
-      headers: { Authorization: authorization, "Auth-Type": "Docs" },
+      headers: { ...authorization },
     });
     return metadata.data;
   } catch (error) {
     logger.log({
       level: "error",
       message: `GetMetadata failed, error: ${error}`,
-      label: `Session: ${fileId}, User: ${user.id}`
+      label: `Session: ${fileId}, User: ${user.id}`,
     });
     throw error;
   }

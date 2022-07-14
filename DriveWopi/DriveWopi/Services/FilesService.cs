@@ -21,59 +21,6 @@ namespace DriveWopi.Services
             return user.Authorization;
         }
 
-        public async static Task<string> getUploadId(FileInfo fileInfo, string authorization, string fileId)
-        {
-            try
-            {
-                HttpClientHandler clientHandler = new HttpClientHandler();
-                clientHandler.ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => { return true; };
-                using (var httpClient = new HttpClient(clientHandler))
-                {
-                    string uploadId = "";
-                    httpClient.DefaultRequestHeaders.Add("Auth-Type", "Docs");
-                    httpClient.DefaultRequestHeaders.Add("X-Content-Length", fileInfo.Length.ToString());
-                    httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                    if (!Config.Mimetypes.ContainsKey(fileInfo.Extension.ToString().ToLower()))
-                    {
-                        throw new Exception();
-                    }
-                    var body = new { title = fileInfo.Name.ToString(), mimeType = Config.Mimetypes[fileInfo.Extension.ToString().ToLower()] };
-                    string convertedBody = JsonConvert.SerializeObject(body, new JsonSerializerSettings());
-                    HttpContent content = new StringContent(convertedBody, System.Text.Encoding.UTF8, "application/json");
-                    HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, Config.DriveUrl + "/api/upload/" + fileId);
-                    request.Headers.Add("X-Content-Length", fileInfo.Length.ToString());
-                    request.Headers.Add("Auth-Type", "Docs");
-                    request.Headers.Add("Authorization", authorization);
-                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                    request.Content = content;
-                    var response = await httpClient.SendAsync(request);
-                    HttpHeaders headers = response.Headers;
-                    IEnumerable<string> values;
-                    if (headers.TryGetValues("X-Uploadid", out values))
-                    {
-                        uploadId = values.First();
-                        Config.logger.LogDebug("uploadId to drive is: "+ uploadId);
-                    }
-                    else
-                    {
-                        Config.logger.LogError("uploadId creation fail "+fileId);
-                        if(response.StatusCode == HttpStatusCode.NotFound){
-                            Config.logger.LogError("Got an exception in GetUploadId - file not found");
-                            HandleNotFoundCase(fileId);
-                            throw new DriveFileNotFoundException(fileId);
-                        }
-                        return null;
-                    }
-                    return uploadId;
-                }
-            }
-            catch (Exception ex)
-            {
-                Config.logger.LogError("Got an exception in GetUploadId:" + ex.Message);
-                return null;
-            }
-        }
-
         public static void HandleNotFoundCase(string fileId) 
         {
             try{
@@ -91,36 +38,10 @@ namespace DriveWopi.Services
         {
             try
             {
-                Task<string> t = Task<string>.Run(async () =>
-                {
-                    try
-                    {
-                        string uploadId = await getUploadId(fileInfo, authorization, fileId);
-                        return uploadId;
-                    }
-                    catch (Exception e)
-                    {
-                        if(e is DriveFileNotFoundException){
-                            throw e;
-                        }
-                        else{
-                            return null;
-                        }
-
-                    }
-                });
-                t.Wait();
-                string uploadId = t.Result;
-                if (uploadId == null)
-                {
-                    return false;
-                }
                 using (var client = new WebClient())
                 {
-                    client.Headers.Set("Content-Range", "bytes 0-" + (fileInfo.Length - 1) + "/" + fileInfo.Length);
-                    client.Headers.Set("Authorization", authorization);
-                    client.Headers.Set("Auth-Type", "Docs");
-                    string url = Config.DriveUrl + "/api/upload?uploadType=resumable&uploadId=" + uploadId;
+                    client.Headers.Set("cookie", authorization);
+                    string url = Config.DriveUrl + "/api/files/" + fileId + "/reupload?size=" + fileInfo.Length;
                     byte[] responseArray = client.UploadFile(url, fileInfo.FullName);
                     Config.logger.LogDebug("UpdateFileInDrive success");
                     return true;
@@ -138,9 +59,8 @@ namespace DriveWopi.Services
             {
                 using (var client = new WebClient())
                 {
-                    client.Headers.Set("Auth-Type", "Docs");
-                    client.Headers.Set("Authorization", authorization);
-                    client.DownloadFile(Config.DriveUrl + "/api/files/" + idToDownload + "?alt=media", localPath);
+                    client.Headers.Set("cookie", authorization);
+                    client.DownloadFile(Config.DriveUrl + "api/fs/file/" + idToDownload + "/download", localPath);
                 }
                 Config.logger.LogDebug("DownloadFileFromDrive success, fileId: "+idToDownload);
             }
